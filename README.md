@@ -1,6 +1,6 @@
 # JUNIPR
 
-JUNIPR_public is a tf.keras implementation of the JUNIPR model introduced in arXiv:1804.09720
+JUNIPR is a tf.keras implementation of the JUNIPR model introduced in arXiv:1804.09720
 
 The code is written with tensorflow version 1.11. Compatibility with earlier versions is not guaranteed. 
 
