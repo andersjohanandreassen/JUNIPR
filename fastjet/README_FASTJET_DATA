@@ -1,0 +1,47 @@
+README for data:
+
+Jets from MC is in the raw_jets folder and has the following format:
+-----------------------------------------
+J 0 
+N 8
+-204.103 250.853 224.357 393.769
+-30.5106 20.6555 31.9231 48.7746
+-19.1107 17.6651 17.5412 31.4133
+-4.74079 4.87839 2.88226 7.40458
+-5.65889 1.10667 2.3239 6.23237
+-1.75244 1.15018 1.43121 2.53839
+-1.58963 0.95039 0.555235 1.93992
+-0.758534 -1.32334 0.0855578 1.79284
+J 1
+N 11
+127.437 336.758 -146.198 388.84
+-2.69428 46.33 -5.98605 46.9764
+12.8688 22.7201 -12.8446 29.1142
+2.48048 6.78575 -5.07588 8.89197
+-1.01098 7.34865 -0.368879 7.4364
+3.18457 5.99756 -2.40989 7.21442
+-0.334409 1.50177 -0.301028 1.57623
+-0.0450135 1.29425 -0.542369 1.40402
+-0.114586 0.982567 -0.322217 1.04038
+-0.366814 0.939042 -0.127063 1.02566
+0.457797 0.882645 -0.185529 1.01147
+J 2
+.
+.
+.
+-------------------------------------------
+
+The lines starting with "J" indicate a new jet, and the number indicates which number jet this is. The number is not important and is only used for bookkeeping purposes.
+The lines starting with "N" count the multiplicity of the jet, and the number is important as it is used by "jets_to_JUNIPR.cc"
+
+Compile jets_to_JUNIPR.cc with (something like)
+g++ jets_to_JUNIPR.cc -o jets_to_JUNIPR `$FASTJET-INSTALL-PATH/bin/fastjet-config --cxxflags --libs --plugins`
+
+jets_to_JUNIPR.cc imports "fastjet_JUNIPR_utilities.cc" which uses the clustering history to convert a reclustered jet into the JUNIPR input format. 
+
+Run jets_to_JUNIPR.cc with the command:
+./jets_to_JUNIPR input_directory input_file output_directory recluster_def
+E.g. with reclustering using Cambridge/Achen:
+./jets_to_JUNIPR raw_jets jets.dat ../input_data 0
+
+You should now have a file in input_data with each jet formatted as required by JUNIPR. 
