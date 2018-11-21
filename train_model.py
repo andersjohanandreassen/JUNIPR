@@ -4,9 +4,6 @@ from JUNIPR import *
 data_path = './input_data/JUNIPR_format_jets.dat'
 data_label = 'quarks'
 
-n_events    = 20000
-granularity = 10
-
 n_events    = 2*10**4
 granularity = 10
 optimizer   = 'SGD'
