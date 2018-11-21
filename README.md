@@ -1,6 +1,6 @@
 # JUNIPR
 
-** This code is in a public beta. Parts of the code is still in development and new features will be added in the near future. ** 
+**This code is in a public beta. Parts of the code is still in development and new features will be added in the near future.** 
 
 JUNIPR is a tf.keras implementation of the JUNIPR model introduced in arXiv:1804.09720
 
