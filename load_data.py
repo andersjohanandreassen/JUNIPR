@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import tensorflow as tf
-K = tf.keras
+tfK = tf.keras
 import pickle
 
 from feature_scaling import *
@@ -12,22 +12,22 @@ from feature_scaling import *
 def preprocess_endings(endings_string):
     # Endings string gives the length of the jet
     # convert to categorical and change type to bool
-    return np.expand_dims(np.asarray(K.utils.to_categorical(endings_string), dtype=np.bool)[0], axis=-1)
+    return np.expand_dims(np.asarray(tfK.utils.to_categorical(endings_string), dtype=np.bool)[0], axis=-1)
     
 def preprocess_mothers(mothers_string, dim_mother_out=100):
     # mothers_string is a list of indicies as strings indicating which mother to branch (in an energy ordered list)
     mothers_int = np.asarray(mothers_string, dtype=np.int)
     # convert to categorical where the number of classes increases by one per time step as the number of candidates increases
     # change type to bool
-    mothers = [np.asarray(K.utils.to_categorical(m, num_classes=t+1), dtype='bool') for t, m in enumerate(mothers_int)] + [[False]]
-    return K.preprocessing.sequence.pad_sequences(mothers, dtype=np.bool, padding = 'post', maxlen=dim_mother_out)
+    mothers = [np.asarray(tfK.utils.to_categorical(m, num_classes=t+1), dtype='bool') for t, m in enumerate(mothers_int)] + [[False]]
+    return tfK.preprocessing.sequence.pad_sequences(mothers, dtype=np.bool, padding = 'post', maxlen=dim_mother_out)
 
 def preprocess_mother_weights(mothers_string, dim_mother_out=100):
     # mothers_string is a list of indicies as strings indicating which mother to branch (in an energy ordered list)
     mothers_int = np.asarray(mothers_string, dtype=np.int)
     # create list of weights (dtype bool) for each timestep
     weights = [np.ones(t+1, dtype='bool') for t in range(len(mothers_int))] + [[False]]
-    return K.preprocessing.sequence.pad_sequences(weights, padding='post', dtype=np.bool, maxlen=dim_mother_out)
+    return tfK.preprocessing.sequence.pad_sequences(weights, padding='post', dtype=np.bool, maxlen=dim_mother_out)
 
 def preprocess_daughters(daughters_string, dim_mom=4):
     # daughters string is a list of daughter momenta (as a string) - 8 numbers per timestep corresponding to the two daughters
@@ -90,10 +90,10 @@ def read_in_jets(data_path, n_events, skip_first = 0, dim_mom = 4, dim_mother_ou
 def pad_batched_data(data, i, granularity = 10):
     pad_values   = [-1, -1, False, False, False, False, granularity**4, False]
     dtypes       = [np.float32, np.float32, np.bool, np.bool, np.bool, np.bool, np.int32, np.bool]
-    return [K.preprocessing.sequence.pad_sequences(batch, padding='post', dtype=dtypes[i], value=pad_values[i]) for batch in data]
+    return [tfK.preprocessing.sequence.pad_sequences(batch, padding='post', dtype=dtypes[i], value=pad_values[i]) for batch in data]
 
 def batch_data(data, batch_size, granularity = 10, dim_mom = 4):
-    batched_data = [np.asarray(data[0]).reshape((-1, batch_size, 1, dim_mom))]
+    batched_data = [np.asarray(data[0]).reshape((-1, batch_size, dim_mom))]
     for data_i, d in enumerate(data[1:]):
         # Batch and pad each of the data sets
         batched_data.append(pad_batched_data([d[batch_size*batch_i:batch_size*(batch_i+1)] for batch_i in range(len(d)//batch_size)], data_i, granularity=granularity))

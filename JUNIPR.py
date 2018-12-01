@@ -1,5 +1,5 @@
 import tensorflow as tf 
-K = tf.keras
+tfK = tf.keras
 
 import numpy as np
 from load_data import *
@@ -77,104 +77,111 @@ class JUNIPR:
     def normalize_layer(self, x):
         """ Activation function that normalizes the output of a layer. 
         Assumes that all values are in the range [0,1] """
-        total = K.backend.clip(K.backend.sum(x, axis=-1, keepdims=True), K.backend.epsilon(), 1)
+        total = tfK.backend.clip(tfK.backend.sum(x, axis=-1, keepdims=True), tfK.backend.epsilon(), 1)
         return x/total
     
     def binary_crossentropy_end(self, target, output):
         if self.normalize_by_length:
             # Default Keras behavior is to normalize loss by length of sequence
-            return K.losses.binary_crossentropy(target, output)
+            return tfK.losses.binary_crossentropy(target, output)
         else:
             # Multiply by length of sequence to remove default normalization
-            N_branchings = tf.cast(K.backend.expand_dims(K.backend.argmax(target, axis = 1), axis = -1), tf.float32) + 1
-            batch_scaling = K.backend.mean(N_branchings)*N_branchings**(-1.) # Undo batch normalization where keras does a weighted average
-            return K.backend.mean(batch_scaling*N_branchings*K.backend.binary_crossentropy(target, output), axis = -1)
+            N_branchings = tf.cast(tfK.backend.expand_dims(tfK.backend.argmax(target, axis = 1), axis = -1), tf.float32) + 1
+            batch_scaling = tfK.backend.mean(N_branchings)*N_branchings**(-1.) # Undo batch normalization where keras does a weighted average
+            return tfK.backend.mean(batch_scaling*N_branchings*tfK.backend.binary_crossentropy(target, output), axis = -1)
         
     def categorical_crossentropy_mother(self, target, output):
         """ categorical_crossentropy where rows with just zeros are ignored """
         # Normalize output ignoring rows of just zeros
-        sums = K.backend.sum(output, axis=-1, keepdims=True)
-        sums = K.backend.clip(sums, K.backend.epsilon(), 1)
+        sums = tfK.backend.sum(output, axis=-1, keepdims=True)
+        sums = tfK.backend.clip(sums, tfK.backend.epsilon(), 1)
         output = output/sums
         # Explicitly calculate categorical_crossentropy
-        output = K.backend.clip(output, K.backend.epsilon(), 1) # Clip to avoid nan from log(zero) from padding
+        output = tfK.backend.clip(output, tfK.backend.epsilon(), 1) # Clip to avoid nan from log(zero) from padding
         
         if self.normalize_by_length:
             # Default Keras behavior is to normalize loss by length of sequence
-            return -K.backend.sum(target*K.backend.log(output), axis=-1)
+            return -tfK.backend.sum(target*tfK.backend.log(output), axis=-1)
         else:
             # Multiply by length of sequence to remove default normalization
-            N_branchings = K.backend.sum(target, axis = (1,2), keepdims = True)+1 # length of each jet
-            batch_scaling = K.backend.mean(N_branchings)*N_branchings**(-1.) # Undo batch normalization where keras does a weighted average
-            return -K.backend.sum(N_branchings*batch_scaling*target*K.backend.log(output), axis=-1)
+            N_branchings = tfK.backend.sum(target, axis = (1,2), keepdims = True)+1 # length of each jet
+            batch_scaling = tfK.backend.mean(N_branchings)*N_branchings**(-1.) # Undo batch normalization where keras does a weighted average
+            return -tfK.backend.sum(N_branchings*batch_scaling*target*tfK.backend.log(output), axis=-1)
         
     def sparse_categorical_crossentropy_branch(self, target, output):
         if self.normalize_by_length:
             # Default Keras behavior is to normalize loss by length of sequence
-            return K.losses.sparse_categorical_crossentropy(target, output)
+            return tfK.losses.sparse_categorical_crossentropy(target, output)
         else:
             # Multiply by length of sequence to remove default normalization
-            #N_branchings = tf.cast(K.backend.expand_dims(K.backend.argmax(target, axis = 1), axis = -1), tf.float32)
-            N_branchings = tf.cast(K.backend.argmax(target, axis = 1), tf.float32)
-            N_branchings = K.backend.maximum(N_branchings, K.backend.ones_like(N_branchings)) # K.backend.maximum neccesary to deal with jets of length 1 (zero splittings)
-            batch_scaling = K.backend.mean(N_branchings)*N_branchings**(-1.) # Undo batch normalization where keras does a weighted average
-            return batch_scaling*N_branchings*K.losses.sparse_categorical_crossentropy(target, output)
+            #N_branchings = tf.cast(tfK.backend.expand_dims(tfK.backend.argmax(target, axis = 1), axis = -1), tf.float32)
+            N_branchings = tf.cast(tfK.backend.argmax(target, axis = 1), tf.float32)
+            N_branchings = tfK.backend.maximum(N_branchings, tfK.backend.ones_like(N_branchings)) # tfK.backend.maximum neccesary to deal with jets of length 1 (zero splittings)
+            batch_scaling = tfK.backend.mean(N_branchings)*N_branchings**(-1.) # Undo batch normalization where keras does a weighted average
+            return batch_scaling*N_branchings*tfK.losses.sparse_categorical_crossentropy(target, output)
             
     def model(self):
         """ Build model of JUNIPR """
         
         # Inputs to JUNIPR
-        input_seed_momenta   = K.Input((None, self.dim_mom),        name = 'input_seed_momenta' + self.label)
-        input_daughters      = K.Input((None, self.dim_daughters),  name = 'input_daughters' + self.label)
-        input_mother_momenta = K.Input((None, self.dim_mom),        name = 'input_mother_momenta' + self.label)
-        input_mother_weights = K.Input((None, self.dim_mother_out), name = 'input_mother_weights' + self.label)
+        input_seed_momenta     = tfK.Input((self.dim_mom, ),        name = 'input_seed_momenta' + self.label)
+        input_daughters        = tfK.Input((None, self.dim_daughters),  name = 'input_daughters' + self.label)
+        input_mother_momenta   = tfK.Input((None, self.dim_mom),        name = 'input_mother_momenta' + self.label)
+        input_mother_weights   = tfK.Input((None, self.dim_mother_out), name = 'input_mother_weights' + self.label)
+        
+        # Get copy of seed_momenta with same dimensions as RNN input
+        input_seed_momenta_exp = tfK.layers.Lambda(lambda x: tfK.backend.expand_dims(x, axis = 1), name = 'input_seed_momenta_expand_dims' + self.label)(input_seed_momenta)
         
         # Masking
-        masked_input_seed_momenta   = K.layers.Masking(mask_value=self.d_mask, name = 'masked_input_seed_momenta' + self.label)(input_seed_momenta)
-        masked_input_daughters      = K.layers.Masking(mask_value=self.d_mask, name = 'masked_input_daughters' + self.label)(input_daughters)
-        masked_input_mother_momenta = K.layers.Masking(mask_value=self.m_mask, name = 'masked_input_mother_momenta' + self.label)(input_mother_momenta)
+        masked_input_seed_momenta   = tfK.layers.Masking(mask_value=self.d_mask, name = 'masked_input_seed_momenta' + self.label)(input_seed_momenta_exp)
+        masked_input_daughters      = tfK.layers.Masking(mask_value=self.d_mask, name = 'masked_input_daughters' + self.label)(input_daughters)
+        masked_input_mother_momenta = tfK.layers.Masking(mask_value=self.m_mask, name = 'masked_input_mother_momenta' + self.label)(input_mother_momenta)
         
         # RNN cell
         if self.RNN_type == 'LSTM':
-            self.RNN_cell = K.layers.LSTM
+            self.RNN_cell = tfK.layers.LSTM
             print("Using LSTM Network")
         elif self.RNN_type == 'GRU':
-            self.RNN_cell = K.layers.GRU
+            self.RNN_cell = tfK.layers.GRU
             print("Using GRU Network")
         else:
-            self.RNN_cell = K.layers.SimpleRNN
+            self.RNN_cell = tfK.layers.SimpleRNN
             print("Using SimpleRNN Network")
         
         # Initialize RNN from seed momentum
         if self.RNN_type == 'LSTM':
-            h_init = K.layers.Dense(self.dim_RNN, activation = 'tanh', name = 'h_init' + self.label)(masked_input_seed_momenta)
-            c_init = K.layers.Dense(self.dim_RNN, activation = 'tanh', name = 'c_init' + self.label)(masked_input_seed_momenta)
-            initial_state = [h_init[:,0,:], c_init[:,0,:]]
+            h_init_layer = tfK.layers.Dense(self.dim_RNN, activation = 'tanh', name = 'h_init' + self.label)
+            h_init = h_init_layer(input_seed_momenta)
+            c_init = tfK.layers.Dense(self.dim_RNN, activation = 'tanh', name = 'c_init' + self.label)(input_seed_momenta)
+            initial_state = [h_init, c_init]
+            rnn_0  = h_init_layer(masked_input_seed_momenta)
         else:
-            h_init = K.layers.Dense(self.dim_RNN, activation = 'tanh', name = 'h_init' + self.label)(masked_input_seed_momenta)
-            initial_state = [h_init[:,0,:]]
+            h_init_layer = tfK.layers.Dense(self.dim_RNN, activation = 'tanh', name = 'h_init' + self.label)
+            h_init = h_init_layer(input_seed_momenta)
+            initial_state = [h_init]
+            rnn_0  = h_init_layer(masked_input_seed_momenta)
 
         # RNN for t>0
         rnn_t = self.RNN_cell(self.dim_RNN, name = 'RNN' + self.label, activation = 'tanh', return_sequences = True, bias_initializer = 'glorot_normal')(masked_input_daughters, initial_state = initial_state)
         
-        RNN = K.layers.concatenate([h_init, rnn_t], axis=1, name = 'concatenate_RNN' + self.label)
+        RNN = tfK.layers.concatenate([rnn_0, rnn_t], axis=1, name = 'concatenate_RNN' + self.label)
         
         # End
-        end_hidden = K.layers.Dense(self.dim_end_hid, name = 'end_hidden_layer' + self.label, activation = 'relu')(RNN)
-        end_output = K.layers.Dense(1,                name = 'end_output_layer' + self.label, activation = 'sigmoid')(end_hidden)
+        end_hidden = tfK.layers.Dense(self.dim_end_hid, name = 'end_hidden_layer' + self.label, activation = 'relu')(RNN)
+        end_output = tfK.layers.Dense(1,                name = 'end_output_layer' + self.label, activation = 'sigmoid')(end_hidden)
         
         # Mother
-        mother_hidden = K.layers.Dense(self.dim_mother_hid, name = 'mother_hidden_layer' + self.label, activation = 'relu')(RNN)
-        mother_unweighted_output = K.layers.Dense(self.dim_mother_out, name = 'mother_unweighted_output' + self.label, activation = 'softmax')(mother_hidden)
-        mother_weighted_output = K.layers.multiply([input_mother_weights, mother_unweighted_output], name = 'multiply_weights' + self.label)
-        mother_output = K.layers.Activation(self.normalize_layer, name = 'Normalize' + self.label)(mother_weighted_output)
+        mother_hidden = tfK.layers.Dense(self.dim_mother_hid, name = 'mother_hidden_layer' + self.label, activation = 'relu')(RNN)
+        mother_unweighted_output = tfK.layers.Dense(self.dim_mother_out, name = 'mother_unweighted_output' + self.label, activation = 'softmax')(mother_hidden)
+        mother_weighted_output = tfK.layers.multiply([input_mother_weights, mother_unweighted_output], name = 'multiply_weights' + self.label)
+        mother_output = tfK.layers.Activation(self.normalize_layer, name = 'Normalize' + self.label)(mother_weighted_output)
         
         # Branch 
-        branch_input  = K.layers.concatenate([RNN, masked_input_mother_momenta], axis=-1 , name = 'concatinate_branch_inputs' + self.label)
-        branch_hidden = K.layers.Dense(self.dim_branch_hid, name = 'branch_hidden_layer' + self.label, activation = 'relu')(branch_input)
-        branch_output = K.layers.Dense(self.dim_branch_out, name = 'branch_output_layer' + self.label, activation = 'softmax')(branch_hidden)
+        branch_input  = tfK.layers.concatenate([RNN, masked_input_mother_momenta], axis=-1 , name = 'concatinate_branch_inputs' + self.label)
+        branch_hidden = tfK.layers.Dense(self.dim_branch_hid, name = 'branch_hidden_layer' + self.label, activation = 'relu')(branch_input)
+        branch_output = tfK.layers.Dense(self.dim_branch_out, name = 'branch_output_layer' + self.label, activation = 'softmax')(branch_hidden)
         
-        return K.models.Model(
+        return tfK.models.Model(
             inputs  = [input_seed_momenta, input_daughters, input_mother_momenta, input_mother_weights], 
             outputs = [end_output, mother_output, branch_output], 
             name = 'JUNIPR_' + self.label)
@@ -184,10 +191,10 @@ class JUNIPR:
         
         # Select the optimizer to use
         if self.optimizer == 'Adam':
-            the_optimizer = K.optimizers.Adam(lr = self.lr) 
+            the_optimizer = tfK.optimizers.Adam(lr = self.lr) 
             print("Compiling: Using Adam with learning rate" + str(self.lr) + ". Default value should be 1e-3.")
         elif self.optimizer == 'SGD':
-            the_optimizer = K.optimizers.SGD(lr = self.lr)
+            the_optimizer = tfK.optimizers.SGD(lr = self.lr)
             print("Compiling: Using SGD with learning rate " + str(self.lr))
         else:
             print("Unknown optimizer (" + self.optimizer + ") at JUNIPR.compile_model")
@@ -251,7 +258,7 @@ class JUNIPR:
                     test_file.flush()
 
                     # Save model
-                    K.models.save_model(self.model, save_file_name)
+                    tfK.models.save_model(self.model, save_file_name)
                 
         train_file.close()
         test_file.close()
@@ -356,7 +363,7 @@ class JUNIPR:
                     if predict:
                         p_e = np.asarray(e[jet_i]*ending_weights[batch_i][jet_i]).flatten()
                         p_m = m[jet_i][mothers[batch_i][jet_i]]
-                        branch_indices = K.utils.to_categorical(sparse_branchings[batch_i][jet_i]).astype('bool')
+                        branch_indices = tfK.utils.to_categorical(sparse_branchings[batch_i][jet_i]).astype('bool')
                         p_b = (b[jet_i][branch_indices]*sparse_branchings_weights[batch_i][jet_i].T).flatten()
 
                         length = len(p_m)
@@ -377,11 +384,11 @@ class JUNIPR:
             return outputs
 
     def load_model(self, path_to_saved_model):
-        with K.utils.CustomObjectScope({'normalize_layer':self.normalize_layer,
+        with tfK.utils.CustomObjectScope({'normalize_layer':self.normalize_layer,
                                         'binary_crossentropy_end': self.binary_crossentropy_end,
                                         'categorical_crossentropy_mother': self.categorical_crossentropy_mother,
                                         'sparse_categorical_crossentropy_branch': self.sparse_categorical_crossentropy_branch}):
-            self.model = K.models.load_model(path_to_saved_model)
+            self.model = tfK.models.load_model(path_to_saved_model)
 
 
 
