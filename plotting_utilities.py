@@ -96,6 +96,22 @@ def p_delta(branchings_out, branchings_counts_out, granularity, t=None):
     return p_branch(3, branchings_out, branchings_counts_out, granularity, t=t)
         
         
+#####################
+## Mother vs angle ##
+#####################
+
+def p_mother_vs_angle(mothers_vs_angle, t=None):
+    x_axis = np.linspace(r_sub, r_jet, mothers_vs_angle.shape[1] + 1)
+    x_axis = (x_axis + np.diff(x_axis)[0])[:-1]
+    if t is not None:
+        numerator   = mothers_vs_angle[t]
+        denominator = np.clip(np.sum(mothers_vs_angle[t]), 0.1, np.inf)
+        return x_axis, numerator/denominator
+    else:
+        # Average over all timesteps
+        numerator   = np.sum(mothers_vs_angle, axis = 0)
+        denominator = np.clip(np.sum(numerator), 0.1, np.inf)
+        return x_axis, numerator/denominator
         
         
         

@@ -9,6 +9,12 @@ from random import shuffle
 def print_progress(step_i, n_steps, n_print_outs=10):
     if step_i != 0 and step_i%(n_steps//n_print_outs) ==0:
         print("-- Step", step_i, "of", n_steps, flush=True)
+        
+def get_bin_index(value, bin_edges):
+    for i, edge in enumerate(np.asarray(bin_edges)[1:]):
+        if(value < edge):
+            return i
+    return len(bin_edges)-2
 
 class JUNIPR:
     """ tf.keras implementation of JUNIPR from arXiv:1804.09720 using a Simple RNN """
@@ -219,7 +225,7 @@ class JUNIPR:
         
         for n_epochs, learning_rate, batch_size in zip(epochs, learning_rates, batch_sizes):
             print('Loading data')
-            [seed_momentum, daughters, mother_momenta, endings, ending_weights, mothers, mother_weights, sparse_branchings, sparse_branchings_weights] = load_data(data_path, n_events, batch_size, granularity, dim_mom = self.dim_mom, verbose=False, pickle_dir = pickle_dir, dim_mother_out = self.dim_mother_out)
+            [seed_momenta, daughters, mother_momenta, endings, ending_weights, mothers, mother_weights, sparse_branchings, sparse_branchings_weights] = load_data(data_path, n_events, batch_size, granularity, dim_mom = self.dim_mom, verbose=False, pickle_dir = pickle_dir, dim_mother_out = self.dim_mother_out)
             self.compile_model(learning_rate)
             n_train    = int((n_events//batch_size)*0.9)
             n_validate = int((n_events//batch_size)*0.1)
@@ -243,12 +249,12 @@ class JUNIPR:
                         print_progress(training_step, n_train)
                             
                         train_loss.append([total_training_step] + list(self.model.train_on_batch(
-                            x = [seed_momentum[i], daughters[i], mother_momenta[i], mother_weights[i]],
+                            x = [seed_momenta[i], daughters[i], mother_momenta[i], mother_weights[i]],
                             y = [endings[i], mothers[i], sparse_branchings[i]])))
                         total_training_step += 1
                     for i in range(n_train, n_train+n_validate):
                         test_loss.append(self.model.test_on_batch(
-                            x = [seed_momentum[i], daughters[i], mother_momenta[i], mother_weights[i]],
+                            x = [seed_momenta[i], daughters[i], mother_momenta[i], mother_weights[i]],
                             y = [endings[i], mothers[i], sparse_branchings[i]]))
                     # Write loss to file for each epoch
                     [train_file.write("{} {} {} {} {} \n".format(*line)) for line in train_loss]
@@ -291,8 +297,9 @@ class JUNIPR:
                 mother_counts_out = pickle.load(f)
                 branchings_out = pickle.load(f)
                 branchings_counts_out = pickle.load(f)
+                mother_vs_angle       = pickle.load(f)
                 # Collect all outputs in one list
-                outputs = [endings_out, ending_counts_out, mothers_out, mother_counts_out, branchings_out, branchings_counts_out]
+                outputs = [endings_out, ending_counts_out, mothers_out, mother_counts_out, branchings_out, branchings_counts_out, mother_vs_angle]
                 # If predict, get probabilities
                 if predict:
                     probabilities = pickle.load(f)
@@ -303,7 +310,7 @@ class JUNIPR:
                 self.load_model(model_path)
         
             all_data = load_data(data_path, n_events = n_events, batch_size = batch_size, dim_mom = self.dim_mom, granularity = granularity, skip_first = skip_first, pickle_dir = in_pickle_dir, reload = reload_input_data, dim_mother_out = self.dim_mother_out)       
-            [seed_momentum, daughters, mother_momenta, endings, ending_weights, mothers, mother_weights, sparse_branchings, sparse_branchings_weights] = all_data
+            [seed_momenta, daughters, mother_momenta, endings, ending_weights, mothers, mother_weights, sparse_branchings, sparse_branchings_weights] = all_data
 
         
             n_batches             = len(daughters)
@@ -317,18 +324,22 @@ class JUNIPR:
 
             branchings_out        = np.zeros((self.max_time, self.dim_branch_out))
             branchings_counts_out = np.zeros((self.max_time, 1))
+            
+            n_bins_mother_vs_angle = 10
+            bin_edges_mother_vs_angle = np.linspace(r_sub, r_jet, n_bins_mother_vs_angle + 1)
+            mother_vs_angle       = np.zeros((self.max_time, n_bins_mother_vs_angle))
         
             probabilities         = []
         
             # Organize outputs in one array
-            outputs = [endings_out, ending_counts_out, mothers_out, mother_counts_out, branchings_out, branchings_counts_out]
+            outputs = [endings_out, ending_counts_out, mothers_out, mother_counts_out, branchings_out, branchings_counts_out, mother_vs_angle]
 
             # Predict on batches 
             for batch_i in range(n_batches):
                 print_progress(batch_i, n_batches)
                 if predict:
                     # Pretict on a single batch 
-                    e, m, b = self.model.predict_on_batch(x = [seed_momentum[batch_i], daughters[batch_i], mother_momenta[batch_i], mother_weights[batch_i]])
+                    e, m, b = self.model.predict_on_batch(x = [seed_momenta[batch_i], daughters[batch_i], mother_momenta[batch_i], mother_weights[batch_i]])
                 else:
                     # Use one batch from input data
                     e = endings[batch_i]
@@ -337,6 +348,9 @@ class JUNIPR:
 
                 batch_length, max_time = e.shape[:2]
                 for jet_i in range(batch_length):
+                    # Initialize intermediate states array
+                    intermediate_states = [unshift_mom(seed_momenta[batch_i][jet_i])]
+                    
                     for t in range(max_time):
 
                         # Endings
@@ -358,6 +372,29 @@ class JUNIPR:
                                 branchings_out[t, b[jet_i, t]]  += 1 # input data is sparse
 
                             branchings_counts_out[t] += 1
+                            
+                        # Mothers vs angle
+                        if predict:
+                            ## Match probabilities and angles, and add up the probability per angle bin
+                            for angle, prob in zip(np.asarray(intermediate_states)[:,1], m[jet_i][t][:t+1]):
+                                mother_bin_index = get_bin_index(angle, bin_edges_mother_vs_angle)
+                                mother_vs_angle[t, mother_bin_index] += prob
+                        else:
+                            mother_index = m[jet_i][t].argmax()
+                            mother_vs_angle_bin_index = get_bin_index(intermediate_states[mother_index][1], bin_edges_mother_vs_angle)
+                            mother_vs_angle[t, mother_vs_angle_bin_index] +=1
+                        
+                        # Add to intiermediate states array:
+                        if t<max_time-1:
+                            d1, d2 = [unshift_mom(d) for d in daughters[batch_i][jet_i][t].reshape(2,4)]
+                            # Add daughters to intermediate state
+                            intermediate_states.append(d1)
+                            intermediate_states.append(d2)
+                            intermediate_states.sort(key = lambda x: -x[0])
+                        
+                            # Remove mother from intermediate state
+                            mother_index = mothers[batch_i][jet_i][t].argmax()
+                            del intermediate_states[mother_index]
 
                     # Jet probabilities
                     if predict:
