@@ -210,7 +210,27 @@ class JUNIPR:
                                         self.categorical_crossentropy_mother, 
                                         self.sparse_categorical_crossentropy_branch])
     
-    def train(self, data_path, n_events, granularity, epochs, learning_rates, batch_sizes, label, log_dir = './logs', save_dir='./saved_models', pickle_dir='./input_data/pickled', start_from_scratch = False):
+    def split_events(self, n_events, n_events_per_sub_epoch):
+        "Create arrays for how to split up n_events into sub epochs with n_events_per_sub_epoch"
+        n_events_remaining = n_events
+    
+        n_events_array = []
+        skip_first_array = []
+    
+        while(n_events_remaining>0):
+            skip_first_array.append(np.sum(n_events_array))
+            n_events_array.append(min(n_events_remaining, n_events_per_sub_epoch))
+            n_events_remaining-=n_events_per_sub_epoch
+        return n_events_array, skip_first_array
+    
+    def train(self, data_path, n_events, granularity, epochs, learning_rates, batch_sizes, label, log_dir = './logs', save_dir='./saved_models', pickle_dir='./input_data/pickled', start_from_scratch = False, n_events_per_sub_epoch = 10**5):
+        
+        # We divide the epoch into sub_epochs. Each with n_events_per_sub_epoch jets each. 
+        # If n_events is small (<10**5) we only have one sub_epoch
+        if n_events_per_sub_epoch>n_events:
+            n_events_per_sub_epoch = n_events
+        # Calculate the numer of events to include and the number of events to skip_first per sub_epoch
+        n_events_array, skip_first_array = self.split_events(n_events, n_events_per_sub_epoch)
         
         if start_from_scratch: # Decide if training should pick up from where it left off if same model was trained earlier, or if it should start from scratch
             open_file_mode = 'w' # truncate existing log file if it exists
@@ -224,47 +244,53 @@ class JUNIPR:
         total_training_step = 0
         
         for n_epochs, learning_rate, batch_size in zip(epochs, learning_rates, batch_sizes):
-            print('Loading data')
-            [seed_momenta, daughters, mother_momenta, endings, ending_weights, mothers, mother_weights, sparse_branchings, sparse_branchings_weights] = load_data(data_path, n_events, batch_size, granularity, dim_mom = self.dim_mom, verbose=False, pickle_dir = pickle_dir, dim_mother_out = self.dim_mother_out)
             self.compile_model(learning_rate)
-            n_train    = int((n_events//batch_size)*0.9)
-            n_validate = int((n_events//batch_size)*0.1)
             
-            for n in range(n_epochs):
-                save_file_name = save_dir + '/' + label + "_weights_BS{}_LR{}_E{}".format(batch_size, learning_rate, n)
+            for epoch_i in range(n_epochs):
                 
-                if (start_from_scratch == False and os.path.exists(save_file_name)):
-                    print("Loading model: " + save_file_name)
-                    self.load_model(save_file_name)
-                    total_training_step += n_train
-                else:                
-                    print("Starting epoch {} with learning_rate {} and batch size {}".format(n, learning_rate, batch_size))
-                    train_loss = []
-                    test_loss  = []
+                for sub_epoch_i, (n_events_i, skip_first_i) in enumerate(zip(n_events_array, skip_first_array)):
+                    
+                    print('Loading data for sub_epoch_i = ', sub_epoch_i, flush = True)
+                    [seed_momenta, daughters, mother_momenta, endings, ending_weights, mothers, mother_weights, sparse_branchings, sparse_branchings_weights] = load_data(data_path, n_events_i, batch_size, granularity, skip_first = skip_first_i, dim_mom = self.dim_mom, verbose=False, pickle_dir = pickle_dir, dim_mother_out = self.dim_mother_out)
+            
+                    n_train    = int((n_events_i//batch_size)*0.9)
+                    n_validate = int((n_events_i//batch_size)*0.1)
+                    
+                    save_file_name = save_dir + '/' + label + "_weights_BS{}_LR{}_E{}_{}".format(batch_size, learning_rate, epoch_i, sub_epoch_i)
 
-                    training_indices = list(range(0, n_train))
-                    shuffle(training_indices) # shuffle training set for each epoch
+                
+                    if (start_from_scratch == False and os.path.exists(save_file_name)):
+                        print("Loading model: " + save_file_name)
+                        self.load_model(save_file_name)
+                        total_training_step += n_train
+                    else:        
+                        print("Starting epoch {} with learning_rate {} and batch size {}".format(epoch_i, learning_rate, batch_size))
+                        train_loss = []
+                        test_loss  = []
 
-                    for training_step, i in enumerate(training_indices):
-                        print_progress(training_step, n_train)
-                            
-                        train_loss.append([total_training_step] + list(self.model.train_on_batch(
-                            x = [seed_momenta[i], daughters[i], mother_momenta[i], mother_weights[i]],
-                            y = [endings[i], mothers[i], sparse_branchings[i]])))
-                        total_training_step += 1
-                    for i in range(n_train, n_train+n_validate):
-                        test_loss.append(self.model.test_on_batch(
-                            x = [seed_momenta[i], daughters[i], mother_momenta[i], mother_weights[i]],
-                            y = [endings[i], mothers[i], sparse_branchings[i]]))
-                    # Write loss to file for each epoch
-                    [train_file.write("{} {} {} {} {} \n".format(*line)) for line in train_loss]
-                    test_file.write("{} {} {} {} {} \n".format(total_training_step, *np.average(test_loss, axis = 0)))
-                    # Flush output losses
-                    train_file.flush()
-                    test_file.flush()
+                        training_indices = list(range(0, n_train))
+                        shuffle(training_indices) # shuffle training set for each epoch
 
-                    # Save model
-                    tfK.models.save_model(self.model, save_file_name)
+                        for training_step, i in enumerate(training_indices):
+                            print_progress(training_step, n_train)
+
+                            train_loss.append([total_training_step] + list(self.model.train_on_batch(
+                                x = [seed_momenta[i], daughters[i], mother_momenta[i], mother_weights[i]],
+                                y = [endings[i], mothers[i], sparse_branchings[i]])))
+                            total_training_step += 1
+                        for i in range(n_train, n_train+n_validate):
+                            test_loss.append(self.model.test_on_batch(
+                                x = [seed_momenta[i], daughters[i], mother_momenta[i], mother_weights[i]],
+                                y = [endings[i], mothers[i], sparse_branchings[i]]))
+                        # Write loss to file for each epoch
+                        [train_file.write("{} {} {} {} {} \n".format(*line)) for line in train_loss]
+                        test_file.write("{} {} {} {} {} \n".format(total_training_step, *np.average(test_loss, axis = 0)))
+                        # Flush output losses
+                        train_file.flush()
+                        test_file.flush()
+
+                        # Save model
+                        tfK.models.save_model(self.model, save_file_name)
                 
         train_file.close()
         test_file.close()
