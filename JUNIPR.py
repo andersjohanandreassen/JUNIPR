@@ -77,7 +77,7 @@ class JUNIPR:
     def normalize_layer(self, x):
         """ Activation function that normalizes the output of a layer. 
         Assumes that all values are in the range [0,1] """
-        total = tfK.backend.clip(tfK.backend.sum(x, axis=-1, keepdims=True), tfK.backend.epsilon(), 1)
+        total = tfK.backend.clip(tfK.backend.sum(x, axis=-1, keepdims=True), tfK.backend.epsilon()**2, 1)
         return x/total
     
     def binary_crossentropy_end(self, target, output):
