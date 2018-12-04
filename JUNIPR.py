@@ -412,15 +412,17 @@ class JUNIPR:
                         
                         # Add to intiermediate states array:
                         if t<max_time-1:
+                            # Remove mother from intermediate state
+                            mother_index = mothers[batch_i][jet_i][t].argmax()
+                            del intermediate_states[mother_index]
+                            
                             d1, d2 = [unshift_mom(d) for d in daughters[batch_i][jet_i][t].reshape(2,4)]
                             # Add daughters to intermediate state
                             intermediate_states.append(d1)
                             intermediate_states.append(d2)
                             intermediate_states.sort(key = lambda x: -x[0])
                         
-                            # Remove mother from intermediate state
-                            mother_index = mothers[batch_i][jet_i][t].argmax()
-                            del intermediate_states[mother_index]
+                            
 
                     # Jet probabilities
                     if predict:
