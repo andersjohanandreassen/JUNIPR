@@ -37,7 +37,9 @@ The lines starting with "N" count the multiplicity of the jet, and the number is
 Compile jets_to_JUNIPR.cc with (something like)
 g++ jets_to_JUNIPR.cc -o jets_to_JUNIPR `$FASTJET-INSTALL-PATH/bin/fastjet-config --cxxflags --libs --plugins`
 
-jets_to_JUNIPR.cc imports "fastjet_JUNIPR_utilities.cc" which uses the clustering history to convert a reclustered jet into the JUNIPR input format. 
+jets_to_JUNIPR.cc imports "CS_to_JuniprJet.cc" which uses the clustering history to convert a reclustered jet into a JuniprJet.
+JuniprJets are defined in "JuniprJet.cc" which is a class to store all the relevant information about the jet. 
+The JuniprJets are written to file in json format. 
 
 Run jets_to_JUNIPR.cc with the command:
 ./jets_to_JUNIPR input_directory input_file output_directory recluster_def
