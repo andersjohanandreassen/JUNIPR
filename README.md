@@ -2,20 +2,25 @@
 
 **This code is in a public beta. Parts of the code is still in development and new features will be added in the near future.** 
 
-JUNIPR is a TF2.0 implementation of the JUNIPR model introduced in arXiv:1804.09720
+## Introduction
+
+JUNIPR is a TF2.0.0-alpha0 implementation of the JUNIPR model introduced in arXiv:1804.09720
 
 An old version written in TF1.* is stored in branch JUNIPR_TFv1. 
 
-Another README file is included in the folder ./fastjet/ with some more details as how to convert jets from e.g. Pythia to the input format needed by JUNIPR. 
-A fastjet code doing the conversion is also included. 
+## Import data
+### Convert from fastjet to JuniprJets.json
+To convert your data to JuniprJets format, please use the code provided in the fastjet directory. 
+Compile `jets_to_JUNIPR.cc` with [fastjet][1] and run to create a .json file with JuniprJet-format. 
+A sample of jets are provided in `fastjet/raw_jets` and a converted sample is provided in `data/json`. 
 
-To explore the input format to JUNIPR, please use the explore_data.ipynb notebook. 
+### Convert from json to TFRecord
+Use the `create_TFRecord` in `junipr.tfrecord.writer_utils` to convert the json file to a TFRecord. 
 
-The model itself is defined in JUNIPR.py
+A sample TFRecord is provided in `data/tfrecord`
 
-Sample data (20000 jets) is included in the ./input_data/ folder to make it easy to test out the code. 
+## Train Model
+The JUNIPR model is defined in `junipr.junipr`. 
 
-A pre-trained model is included in ./saved_models/ and can be studied using the ./validate_model.ipynb notebook. 
 
-You can try to train the model using the ./train_model.py python script. It will train using the included sample data from ./input_data/, and should not require any other configuration other than having tensorflow installed. 
-During training you can monitor the losses using the notebook ./monitor_training.ipynb.
+[1] http://fastjet.fr
