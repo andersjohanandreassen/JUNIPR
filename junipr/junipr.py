@@ -6,8 +6,7 @@ import tensorflow as tf
 tfK = tf.keras
 
 import numpy as np
-from load_data import *
-from random import shuffle
+#from random import shuffle
 from junipr.config import *
 
 

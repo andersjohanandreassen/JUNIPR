@@ -17,10 +17,14 @@ A sample of jets are provided in `fastjet/raw_jets` and a converted sample is pr
 ### Convert from json to TFRecord
 Use the `create_TFRecord` in `junipr.tfrecord.writer_utils` to convert the json file to a TFRecord. 
 
+An example is provided in `Create_TFRecord.ipynb`. Note that this must run with eager execution. 
+
 A sample TFRecord is provided in `data/tfrecord`
 
-## Train Model
+## Build and Train Model
 The JUNIPR model is defined in `junipr.junipr`. 
+
+We provide an example of how to train a model in `JUNIPR_demo.ipynb`.
 
 
 [1] http://fastjet.fr
