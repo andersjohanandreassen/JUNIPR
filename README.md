@@ -2,9 +2,9 @@
 
 **This code is in a public beta. Parts of the code is still in development and new features will be added in the near future.** 
 
-JUNIPR is a tf.keras implementation of the JUNIPR model introduced in arXiv:1804.09720
+JUNIPR is a TF2.0 implementation of the JUNIPR model introduced in arXiv:1804.09720
 
-The code is written with tensorflow version 1.11. Compatibility with earlier versions is not guaranteed. 
+An old version written in TF1.* is stored in branch JUNIPR_TFv1. 
 
 Another README file is included in the folder ./fastjet/ with some more details as how to convert jets from e.g. Pythia to the input format needed by JUNIPR. 
 A fastjet code doing the conversion is also included. 
