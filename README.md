@@ -11,7 +11,7 @@ An old version written in TF1.* is stored in branch JUNIPR_TFv1.
 ## Import data
 ### Convert from fastjet to JuniprJets.json
 To convert your data to JuniprJets format, please use the code provided in the fastjet directory. 
-Compile `jets_to_JUNIPR.cc` with [fastjet][1] and run to create a .json file with JuniprJet-format. 
+Compile `jets_to_JUNIPR.cc` with [fastjet](http://fastjet.fr) and run to create a .json file with JuniprJet-format. 
 A sample of jets are provided in `fastjet/raw_jets` and a converted sample is provided in `data/json`. 
 
 ### Convert from json to TFRecord
@@ -24,7 +24,4 @@ A sample TFRecord is provided in `data/tfrecord`
 ## Build and Train Model
 The JUNIPR model is defined in `junipr.junipr`. 
 
-We provide an example of how to train a model in `JUNIPR_demo.ipynb`.
-
-
-[1] http://fastjet.fr
+We provide an a `training_demo.ipynb` and `validation_demo.ipynb` as examples for how to train and validate a JUNIPR model. 
