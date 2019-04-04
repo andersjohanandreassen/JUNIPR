@@ -59,6 +59,10 @@ def sparse_branchings_feature(branchings, granularity=10):
     shifted_branchings = np.asarray([shift_branch(branching) for branching in branchings])
     return _list_of_lists_int64_feature(list(np.clip(shifted_branchings*granularity, 0, granularity-1).astype(np.int32)) + [[10]*4])
 
+def sparse_branching_weights_feature(n_branchings):
+    """ Create feature for sparse_branching_weights"""
+    return _list_int64_feature(tf.fill((n_branchings,1),1))
+
 
 def get_sequence_example_object(data_element_dict):
     """ Creates a SequenceExample object from a dictionary for a single data element 
@@ -73,6 +77,7 @@ def get_sequence_example_object(data_element_dict):
                 'endings'        : endings_feature(       data_element_dict['n_branchings']),
                 'ending_weights' : ending_weights_feature(data_element_dict['n_branchings']),
                 'mothers'        : mothers_feature(       data_element_dict['mothers_id_energy_order']),
+                'sparse_branching_weights' : sparse_branching_weights_feature(data_element_dict['n_branchings']),
                 
                 #'mothers_id_energy_order':       _list_int64_feature(data_element_dict['mothers_id_energy_order']),
                 #'CS_ID_mothers':       _list_int64_feature(data_element_dict['CS_ID_mothers']),

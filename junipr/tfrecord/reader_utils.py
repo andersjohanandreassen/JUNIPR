@@ -26,6 +26,7 @@ def parse_fn(data_record):
         'seed_momentum' : tf.io.FixedLenFeature([4], tf.float32),
         'endings'       : tf.io.VarLenFeature(tf.int64),
         'ending_weights': tf.io.VarLenFeature(tf.int64),
+        'sparse_branching_weights': tf.io.VarLenFeature(tf.int64),
         'mothers'       : tf.io.FixedLenFeature([3], tf.string),
         
         #'mothers_id_energy_order':    tf.VarLenFeature(tf.int64),
@@ -55,6 +56,7 @@ def parse_fn(data_record):
     # context_features
     context_data['endings']        = tf.expand_dims(tf.sparse.to_dense(context_data['endings'], default_value=E_PAD), axis=-1)
     context_data['ending_weights'] = tf.expand_dims(tf.sparse.to_dense(context_data['ending_weights'], default_value=E_PAD), axis=-1)
+    context_data['sparse_branching_weights'] = tf.expand_dims(tf.sparse.to_dense(context_data['sparse_branching_weights'], default_value=E_PAD), axis=-1)
     context_data['mothers']        = deserialize_sparse(context_data['mothers'], tf.int64)
     
     #context_data['mothers_id_energy_order']        = tf.sparse.to_dense(context_data['mothers_id_energy_order'], default_value=-1)
@@ -84,6 +86,7 @@ def parse_fn(data_record):
            },{
             'endings'            : context_data['endings'],
             'ending_weights'     : context_data['ending_weights'],
+            'sparse_branching_weights'     : context_data['sparse_branching_weights'],
             'mothers'            : context_data['mothers'],
             'sparse_branchings_z': sequence_data['sparse_branchings'][:,0:1],
             'sparse_branchings_t': sequence_data['sparse_branchings'][:,1:2],
@@ -107,6 +110,7 @@ TFR_PADDED_SHAPES = ({'seed_momentum'   : [4],
                       'sparse_branchings_t': [None,1],
                       'sparse_branchings_p': [None,1],
                       'sparse_branchings_d': [None,1],
+                      'sparse_branching_weights'     : [None, 1],
                       })
 
 TFR_PADDED_SHAPES_MAX = ({'seed_momentum'   : [4],
@@ -125,6 +129,7 @@ TFR_PADDED_SHAPES_MAX = ({'seed_momentum'   : [4],
                           'sparse_branchings_t': [DIM_M, 1],
                           'sparse_branchings_p': [DIM_M, 1],
                           'sparse_branchings_d': [DIM_M, 1],
+                          'sparse_branching_weights'     : [DIM_M, 1],
                           })
 
 TFR_PADDED_VALUES = ({'seed_momentum'   : np.float32(D_PAD),
@@ -143,6 +148,7 @@ TFR_PADDED_VALUES = ({'seed_momentum'   : np.float32(D_PAD),
                       'sparse_branchings_t':np.int64(10),
                       'sparse_branchings_p':np.int64(10),
                       'sparse_branchings_d':np.int64(10),
+                      'sparse_branching_weights':np.int64(0),
                       })
 
 def get_dataset(tfrecord_filename, batch_size=1, padded_shapes = TFR_PADDED_SHAPES, batch = False):

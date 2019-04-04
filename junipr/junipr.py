@@ -6,6 +6,7 @@ import tensorflow as tf
 tfK = tf.keras
 
 import numpy as np
+import os
 #from random import shuffle
 from junipr.config import *
 
@@ -16,7 +17,7 @@ class JUNIPR:
     def __init__(self, 
                  label = None, 
                  dim_mom = 4, 
-                 dim_end_hid = 10, dim_mother_hid = 10, dim_mother_out = 100, dim_branch_hid = 10, dim_RNN = 10, 
+                 dim_end_hid = 10, dim_mother_hid = 10, dim_mother_out = DIM_M, dim_branch_hid = 10, dim_RNN = 10, 
                  optimizer = None, 
                  RNN_type = None,
                  model_path = None):
@@ -65,6 +66,10 @@ class JUNIPR:
         
         if model_path is not None:
             self.load_model(model_path)
+            
+        self.custom_objects = {'normalize_layer':self.normalize_layer,
+                               'categorical_crossentropy_mother': self.categorical_crossentropy_mother,
+                              }
         
     def normalize_layer(self, x):
         """ Activation function that normalizes the output of a layer. 
@@ -173,7 +178,7 @@ class JUNIPR:
                                                     self.masked_input_branch_t, 
                                                     self.masked_input_branch_d], 'p')
         
-        _outputs = [self.end_output, self.mother_output, self.branch_z_output, self.branch_t_output, self.branch_d_output, self.branch_p_output]
+        _outputs = [self.end_output, self.mother_output, self.branch_z_output, self.branch_t_output, self.branch_p_output, self.branch_d_output]
         
         return tfK.models.Model(inputs  = _inputs, 
                                 outputs = _outputs, 
@@ -200,201 +205,93 @@ class JUNIPR:
                                         'sparse_categorical_crossentropy',
                                         'sparse_categorical_crossentropy'])
     
-"""
-    def validate(self, data_path, n_events, predict, model_path = None, batch_size = 100, granularity = 10, label = '', skip_first = 0, in_pickle_dir='./input_data/pickled', out_pickle_dir='./output_data/pickled', reload = False, reload_input_data = False, verbose = True):
-        # Check if pickle_dir exists, or create it if not. 
-        if not os.path.exists(out_pickle_dir):
-            os.makedirs(out_pickle_dir)
     
-        if skip_first>0:
-            SKIP = "_SKIP" + str(skip_first)
-        else:
-            SKIP = ""
-        
-        if model_path is None:
-            model_basename = ""
-        else:
-            model_basename = os.path.basename(model_path)
-            
-        pickle_path = out_pickle_dir + '/' + label + model_basename + '_N' + str(n_events) + SKIP + '_D' + str(self.dim_mom) + '_BS' + str(batch_size) +'_G' + str(granularity) + '_DM' + str(self.dim_mother_out) + '_validate.pickled'
-        
-        # If not forced to reload data, see if pickled data alread exists
-        if not reload and os.path.exists(pickle_path):
-            if verbose:
-                print('Getting pickled data from ' + pickle_path)
-            with open(pickle_path, 'rb') as f:
-                endings_out = pickle.load(f)
-                ending_counts_out = pickle.load(f)
-                mothers_out = pickle.load(f)
-                mother_counts_out = pickle.load(f)
-                branchings_z_out = pickle.load(f)
-                branchings_t_out = pickle.load(f)
-                branchings_p_out = pickle.load(f)
-                branchings_d_out = pickle.load(f)
-                branchings_counts_out = pickle.load(f)
-                mother_vs_angle       = pickle.load(f)
-                # Collect all outputs in one list
-                outputs = [endings_out, ending_counts_out, mothers_out, mother_counts_out, branchings_z_out,branchings_t_out, branchings_p_out, branchings_d_out, branchings_counts_out, mother_vs_angle]
-                # If predict, get probabilities
-                if predict:
-                    probabilities = pickle.load(f)
-        
-        else:
-            if verbose:
-                print('Did not find pickled data at ' + pickle_path + '. Validating model now.', flush = True)
-            # Load model
-            if model_path is not None:
-                self.load_model(model_path)
-        
-            all_data = load_data(data_path, n_events = n_events, batch_size = batch_size, dim_mom = self.dim_mom, granularity = granularity, skip_first = skip_first, pickle_dir = in_pickle_dir, reload = reload_input_data, dim_mother_out = self.dim_mother_out)       
-            [seed_momenta, daughters, mother_momenta, endings, ending_weights, mothers, mother_weights, branchings_z, branchings_t, branchings_p, branchings_d, sparse_branchings_z, sparse_branchings_t, sparse_branchings_p, sparse_branchings_d, branchings_weights] = all_data
+    def validate(self, dataset, predict = False, label='', model = None, reload = False, save_dir = './data'):
+        """
+        Validate dataset. 
+        The dataset should have padding set to TFR_PADDED_SHAPES_MAX and not be repeted or shuffled. 
+        """        
+        if label!='':
+            label = '_'+label
 
-        
-            n_batches             = len(daughters)
-        
-            # Create ouput arrays
-            endings_out           = np.zeros((self.max_time, 1))
-            ending_counts_out     = np.zeros((self.max_time, 1))
-        
-            mothers_out           = np.zeros((self.max_time, self.dim_mother_out))
-            mother_counts_out     = np.zeros((self.max_time, self.dim_mother_out))
+        if predict and model is None:
+            model = self.model
 
-            branchings_z_out        = np.zeros((self.max_time, self.granularity))
-            branchings_t_out        = np.zeros((self.max_time, self.granularity))
-            branchings_p_out        = np.zeros((self.max_time, self.granularity))
-            branchings_d_out        = np.zeros((self.max_time, self.granularity))
-            branchings_counts_out = np.zeros((self.max_time, 1))
-            
-            n_bins_mother_vs_angle = 10
-            bin_edges_mother_vs_angle = np.linspace(r_sub, r_jet, n_bins_mother_vs_angle + 1)
-            mother_vs_angle       = np.zeros((self.max_time, n_bins_mother_vs_angle))
-        
-            probabilities         = []
-        
-            # Organize outputs in one array
-            outputs = [endings_out, ending_counts_out, mothers_out, mother_counts_out, branchings_z_out, branchings_t_out, branchings_p_out, branchings_d_out, branchings_counts_out, mother_vs_angle]
-
-            # Predict on batches 
-            for batch_i in range(n_batches):
-                print_progress(batch_i, n_batches)
-                if predict:
-                    # Pretict on a single batch 
-                    e, m, b_z, b_t, b_p, b_d = self.model.predict_on_batch(x = [seed_momenta[batch_i], daughters[batch_i], mother_momenta[batch_i], mother_weights[batch_i], branchings_z[batch_i], branchings_t[batch_i], branchings_d[batch_i]])
-                else:
-                    # Use one batch from input data
-                    e   = endings[batch_i]
-                    m   = mothers[batch_i]
-                    b_z = sparse_branchings_z[batch_i]
-                    b_t = sparse_branchings_t[batch_i]
-                    b_p = sparse_branchings_p[batch_i]
-                    b_d = sparse_branchings_d[batch_i]
-
-                batch_length, max_time = e.shape[:2]
-                for jet_i in range(batch_length):
-                    # Initialize intermediate states array
-                    intermediate_states = [unshift_mom(seed_momenta[batch_i][jet_i])]
-                    
-                    for t in range(max_time):
-
-                        # Endings
-                        if ending_weights[batch_i][jet_i, t] == 1:
-                            endings_out[t]       += e[jet_i, t]
-                            ending_counts_out[t] += 1
-
-                        # Mothers
-                        for mother_candidate_i in range(self.dim_mother_out):
-                            if mother_weights[batch_i][jet_i, t][mother_candidate_i] == 1:
-                                mothers_out[t, mother_candidate_i]       += m[jet_i, t, mother_candidate_i]
-                                mother_counts_out[t, mother_candidate_i] += 1
-
-                        # Branchings
-                        if branchings_weights[batch_i][jet_i, t] == 1:
-                            if predict:
-                                branchings_z_out[t]                 += b_z[jet_i, t][:-1]
-                                branchings_t_out[t]                 += b_t[jet_i, t][:-1]
-                                branchings_p_out[t]                 += b_p[jet_i, t][:-1]
-                                branchings_d_out[t]                 += b_d[jet_i, t][:-1]
-                            else:
-                                branchings_z_out[t, b_z[jet_i, t]]  += 1 # input data is sparse
-                                branchings_t_out[t, b_t[jet_i, t]]  += 1 # input data is sparse
-                                branchings_p_out[t, b_p[jet_i, t]]  += 1 # input data is sparse
-                                branchings_d_out[t, b_d[jet_i, t]]  += 1 # input data is sparse
-
-                            branchings_counts_out[t] += 1
-                            
-                        # Mothers vs angle
-                        if predict:
-                            ## Match probabilities and angles, and add up the probability per angle bin
-                            for angle, prob in zip(np.asarray(intermediate_states)[:,1], m[jet_i][t][:t+1]):
-                                mother_bin_index = get_bin_index(angle, bin_edges_mother_vs_angle)
-                                mother_vs_angle[t, mother_bin_index] += prob
-                        else:
-                            mother_index = m[jet_i][t].argmax()
-                            mother_vs_angle_bin_index = get_bin_index(intermediate_states[mother_index][1], bin_edges_mother_vs_angle)
-                            mother_vs_angle[t, mother_vs_angle_bin_index] +=1
-                        
-                        # Add to intiermediate states array:
-                        if t<max_time-1:
-                            # Remove mother from intermediate state
-                            mother_index = mothers[batch_i][jet_i][t].argmax()
-                            del intermediate_states[mother_index]
-                            
-                            d1, d2 = [unshift_mom(d) for d in daughters[batch_i][jet_i][t].reshape(2,4)]
-                            # Add daughters to intermediate state
-                            intermediate_states.append(d1)
-                            intermediate_states.append(d2)
-                            intermediate_states.sort(key = lambda x: -x[0])
-                        
-                            
-
-                    # Jet probabilities
-                    if predict:
-                        p_e = np.asarray(e[jet_i]*ending_weights[batch_i][jet_i]).flatten()
-                        p_m = m[jet_i][mothers[batch_i][jet_i]]
-                        branch_indices_z = tfK.utils.to_categorical(sparse_branchings_z[batch_i][jet_i], num_classes=granularity+1).astype('bool')
-                        branch_indices_t = tfK.utils.to_categorical(sparse_branchings_t[batch_i][jet_i], num_classes=granularity+1).astype('bool')
-                        branch_indices_p = tfK.utils.to_categorical(sparse_branchings_p[batch_i][jet_i], num_classes=granularity+1).astype('bool')
-                        branch_indices_d = tfK.utils.to_categorical(sparse_branchings_d[batch_i][jet_i], num_classes=granularity+1).astype('bool')
-
-                        p_b0 = (b_z[jet_i][branch_indices_z]*branchings_weights[batch_i][jet_i].T).flatten()
-                        p_b1 = (b_t[jet_i][branch_indices_t]*branchings_weights[batch_i][jet_i].T).flatten()
-                        p_b2 = (b_p[jet_i][branch_indices_p]*branchings_weights[batch_i][jet_i].T).flatten()
-                        p_b3 = (b_d[jet_i][branch_indices_d]*branchings_weights[batch_i][jet_i].T).flatten()
-
-                        length = len(p_m)
-                        probs_e = np.append((1-p_e[:length]), p_e[length])
-                        probs_m = p_m
-                        probs_b0 = p_b0[:length]
-                        probs_b1 = p_b1[:length]
-                        probs_b2 = p_b2[:length]
-                        probs_b3 = p_b3[:length]
-                        probs_b = probs_b0*probs_b1*probs_b2*probs_b3
-        
-                        probslog10 = np.log10(1-p_e[:length], dtype=np.float64)+np.log10(p_m, dtype = np.float64)+np.log10(probs_b0, dtype = np.float64)+np.log10(probs_b1, dtype = np.float64)+np.log10(probs_b2, dtype = np.float64)+np.log10(probs_b3, dtype = np.float64)
-
-                        probabilities.append(np.sum(np.append(probslog10, np.log10(p_e[length]))))
-                        
-            # Pickle outputs
-            with open(pickle_path, 'wb') as f:
-                for item in outputs:
-                    pickle.dump(item, f, protocol=pickle.HIGHEST_PROTOCOL)
-                if predict:
-                    pickle.dump(np.asarray(probabilities), f, protocol=pickle.HIGHEST_PROTOCOL)
-
-                            
         if predict:
-            return outputs, np.asarray(probabilities)
+            save_file = save_dir + '/JUNIPR_validation_data' + label +'.npz'
         else:
-            return outputs
+            save_file = save_dir + '/Pythia_validation_data' + label +'.npz'
+
+        if not reload and os.path.exists(save_file):
+            print("Loading data from " + save_file)
+            return np.load(save_file)['val_data'][0]
+        else:
+            if not tf.executing_eagerly():
+                print("Validation must run in eager mode.")
+                print("Please restart tensorflow and run tf.enable_eager_execution() before running validation")
+                return
+
+            # Create output arrays
+            endings           = np.zeros((DIM_M, 1))
+            ending_counts     = np.zeros((DIM_M, 1))
+
+            mothers           = np.zeros((DIM_M, DIM_M))
+            mother_counts     = np.zeros((DIM_M, DIM_M))
+
+            branchings_z      = np.zeros((DIM_M, GRANULARITY))
+            branchings_t      = np.zeros((DIM_M, GRANULARITY))
+            branchings_p      = np.zeros((DIM_M, GRANULARITY))
+            branchings_d      = np.zeros((DIM_M, GRANULARITY))
+            branchings_counts = np.zeros((DIM_M, 1))
+
+
+            for inputs, outputs in dataset:
+                if predict:
+                    e, m, b_z, b_t, b_p, b_d = model.predict_on_batch(inputs)
+                    e   = e*tf.cast(outputs['ending_weights'], tf.float32)
+                    m   = m*tf.cast(inputs['mother_weights'], tf.float32)
+                    b_z = b_z[...,:-1]*tf.cast(outputs['sparse_branching_weights'], tf.float32)
+                    b_t = b_t[...,:-1]*tf.cast(outputs['sparse_branching_weights'], tf.float32)
+                    b_p = b_p[...,:-1]*tf.cast(outputs['sparse_branching_weights'], tf.float32)
+                    b_d = b_d[...,:-1]*tf.cast(outputs['sparse_branching_weights'], tf.float32)
+                else:
+                    e   = outputs['endings']
+                    m   = outputs['mothers']
+                    b_z = tf.one_hot(outputs['sparse_branchings_z'], depth=GRANULARITY)
+                    b_t = tf.one_hot(outputs['sparse_branchings_t'], depth=GRANULARITY)
+                    b_p = tf.one_hot(outputs['sparse_branchings_p'], depth=GRANULARITY)
+                    b_d = tf.one_hot(outputs['sparse_branchings_d'], depth=GRANULARITY)
+
+
+                endings           += np.sum(e                        , axis=0)
+                ending_counts     += np.sum(outputs['ending_weights'], axis=0)
+
+                mothers           += np.sum(m                        , axis=0)
+                mother_counts     += np.sum(inputs['mother_weights'] , axis=0)
+
+                branchings_z      += np.sum(b_z, axis=(0,1))
+                branchings_t      += np.sum(b_t, axis=(0,1))
+                branchings_p      += np.sum(b_p, axis=(0,1))
+                branchings_d      += np.sum(b_d, axis=(0,1))
+                branchings_counts += np.sum(outputs['sparse_branching_weights'], axis=0)
+
+            val_data = {'endings':endings,
+                        'ending_counts':ending_counts,
+                        'mothers':mothers,
+                        'mother_counts':mother_counts,
+                        'branchings_z':branchings_z,
+                        'branchings_t':branchings_t,
+                        'branchings_p':branchings_p,
+                        'branchings_d':branchings_d,
+                        'branchings_counts':branchings_counts}
+            np.savez(save_file, val_data=[val_data])
+
+            return val_data
 
     def load_model(self, path_to_saved_model):
-        with tfK.utils.CustomObjectScope({'normalize_layer':self.normalize_layer,
-                                        'binary_crossentropy_end': self.binary_crossentropy_end,
-                                        'categorical_crossentropy_mother': self.categorical_crossentropy_mother,
-                                        'sparse_categorical_crossentropy_branch': self.sparse_categorical_crossentropy_branch}):
-            self.model = tfK.models.load_model(path_to_saved_model)
+        self.model = tfK.models.load_model(path_to_saved_model, custom_objects=self.custom_objects)
 
-
+"""
 def get_bin_index(value, bin_edges):
     for i, edge in enumerate(np.asarray(bin_edges)[1:]):
         if(value < edge):
