@@ -9,7 +9,8 @@ class JuniprJet
                   vector< vector<int> >    intermediate_states_arg, 
                   vector<int>              mothers_arg, 
                   vector< vector<int> >    daughters_arg,
-                  vector< vector<double> > branchings_arg);
+                  vector< vector<double> > branchings_arg,
+                  int label_arg);
         
         // Variables set by constructor:
         
@@ -28,6 +29,8 @@ class JuniprJet
     
         // mother_id_energy_order[i] is the id of the mother that branches in the list of energy ordered intermediate states at time step i
         vector<int> mother_id_energy_order;
+    
+        int label; // label for used for classification target value
         
         int multiplicity; // number of final state particles
         int n_branchings; // number of branchings/
@@ -55,6 +58,7 @@ class JuniprJet
         void json_vector_int(ostream& outfile, vector<int> vector_int);
         void json_vector_double(ostream& outfile, vector<double> vector_double);
         
+        void json_label(ostream& outfile);    
         void json_multiplicity(ostream& outfile);
         void json_n_branchings(ostream& outfile);
         void json_seed_momentum(ostream& outfile);
@@ -77,8 +81,10 @@ JuniprJet::JuniprJet(vector< vector<double> > CSJets_arg,
                      vector< vector<int> >    intermediate_states_arg, 
                      vector<int>              mothers_arg, 
                      vector< vector<int> >    daughters_arg,
-                     vector< vector<double> > branchings_arg){
-    
+                     vector< vector<double> > branchings_arg,
+                     int label_arg){
+
+    label               = label_arg;
     CSJets              = CSJets_arg;
     intermediate_states = intermediate_states_arg; 
     mothers             = mothers_arg;
@@ -143,6 +149,8 @@ void JuniprJet::write_to_json(ostream& outfile){
     
     outfile << "{\n\t" ; 
     
+    json_label(outfile);
+        outfile << ",\n\t";
     json_multiplicity(outfile);
         outfile << ",\n\t";
     json_n_branchings(outfile);
@@ -165,6 +173,10 @@ void JuniprJet::write_to_json(ostream& outfile){
             outfile << ",\n\t";
     json_daughter_momenta(outfile);
         outfile << "\n}" ; 
+}
+
+void JuniprJet::json_label(ostream& outfile){
+    outfile << "\"label\" : " << label ;
 }
 
 void JuniprJet::json_multiplicity(ostream& outfile){

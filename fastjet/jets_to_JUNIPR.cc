@@ -1,7 +1,7 @@
 // compile:
 // g++ jets_to_JUNIPR.cc -o jets_to_JUNIPR `../../../../programs/fastjet/fastjet-install/bin/fastjet-config --cxxflags --libs --plugins`
 // run:
-// ./jets_to_JUNIPR input_directory input_file output_directory recluster_def
+// ./jets_to_JUNIPR input_directory input_file output_directory recluster_def label
 
 #include "fastjet/ClusterSequence.hh"
 #include <iostream>
@@ -16,7 +16,7 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
 
-  if (argc != 5) {    
+  if (argc != 6) {    
     cout << "Wrong number of arguments" << endl;
     return 0;
   }
@@ -26,6 +26,7 @@ int main(int argc, char *argv[]) {
   string input_file = argv[2];
   string output_directory = argv[3];
   double recluster_def = atof(argv[4]);
+  int label = atoi(argv[5]);
 
   string input_file_basename = input_file;
   input_file_basename.erase(input_file_basename.find_last_of("."), string::npos);
@@ -81,7 +82,7 @@ int main(int argc, char *argv[]) {
     }
     
       
-    JuniprJet jet = cluster_sequence_to_JuniprJet(reclust_seq);
+    JuniprJet jet = cluster_sequence_to_JuniprJet(reclust_seq, label);
     jet.write_to_json(outfile);
     
     jet_counter++;

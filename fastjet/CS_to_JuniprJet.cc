@@ -56,7 +56,7 @@ void add_hist_id(vector<int> &current_intermediate_state, int hist_id, vector< v
     
 }
 
-JuniprJet cluster_sequence_to_JuniprJet(ClusterSequence cs){
+JuniprJet cluster_sequence_to_JuniprJet(ClusterSequence cs, int label){
     // History: Contains history_elements that lists parents and children at every step in the clusterin history
     // During clustering two parents are merged together to one child
     vector<ClusterSequence::history_element> hist = cs.history();
@@ -135,7 +135,8 @@ JuniprJet cluster_sequence_to_JuniprJet(ClusterSequence cs){
                   intermediate_states,
                   mothers, 
                   daughters,
-                  branchings);
+                  branchings,
+                  label);
     return jet;
 }
 
