@@ -4,15 +4,19 @@ import tensorflow as tf
 import numpy as np
 import json
 from .generic_utils import *
+from junipr.config import *
 from junipr.utils.feature_scaling import *
 from junipr.utils.printing_utils import print_progress
-#from junipr.utils import feature_scaling
 
 ## NEEDS MORE COMMENTS
 
 __all__ = ['create_TFRecord']
 
 ## JUNIPR features
+
+def label_feature(label):
+    """ Create feature for label"""
+    return _single_int64_feature(label)
 
 def n_branchings_feature(n_branchings):
     """ Create feature for n_branchings"""
@@ -36,7 +40,7 @@ def daughter_momenta_feature(daugther_momenta):
 
 def mother_momenta_feature(mother_momenta):
     """ Create feature for mother momenta"""
-    return _list_of_lists_float_feature([shift_mom(mother_momentum) for mother_momentum in mother_momenta] + [[-1]*4])
+    return _list_of_lists_float_feature([shift_mom(mother_momentum) for mother_momentum in mother_momenta] + [[D_PAD]*4])
 
 def mothers_feature(mothers_id_energy_order):
     """ Create feature for mothers (mother ids in energy ordering) """
@@ -52,16 +56,24 @@ def mothers_feature(mothers_id_energy_order):
 
 def branchings_feature(branchings):
     """ Create feature for branchings """
-    return _list_of_lists_float_feature([shift_branch(branching) for branching in branchings] + [[-99]*4])
+    return _list_of_lists_float_feature([shift_branch(branching) for branching in branchings] + [[B_PAD]*4])
 
-def sparse_branchings_feature(branchings, granularity=10):
+def sparse_branchings_feature(branchings):
     """ Create feature for sparse_branchings """
     shifted_branchings = np.asarray([shift_branch(branching) for branching in branchings])
-    return _list_of_lists_int64_feature(list(np.clip(shifted_branchings*granularity, 0, granularity-1).astype(np.int32)) + [[10]*4])
+    return _list_of_lists_int64_feature(list(np.clip(shifted_branchings*GRANULARITY, 0, GRANULARITY-1).astype(np.int32)) + [[GRANULARITY]*4])
 
 def sparse_branching_weights_feature(n_branchings):
     """ Create feature for sparse_branching_weights"""
     return _list_int64_feature(tf.fill((n_branchings,1),1))
+
+def CSJets_feature(CSJets):
+    """ Create feature for CSJets"""
+    return _list_of_lists_float_feature([shift_mom(momentum) for momentum in CSJets])
+
+def CS_ID_intermediate_states_feature(CS_ID_intermediate_states):
+    """ Create feature for CS_ID_intermediate_states"""
+    return _list_of_lists_int64_feature(CS_ID_intermediate_states)
 
 
 def get_sequence_example_object(data_element_dict):
@@ -78,8 +90,8 @@ def get_sequence_example_object(data_element_dict):
                 'ending_weights' : ending_weights_feature(data_element_dict['n_branchings']),
                 'mothers'        : mothers_feature(       data_element_dict['mothers_id_energy_order']),
                 'sparse_branching_weights' : sparse_branching_weights_feature(data_element_dict['n_branchings']),
+                'label'   : label_feature(  data_element_dict['label']),
                 
-                #'mothers_id_energy_order':       _list_int64_feature(data_element_dict['mothers_id_energy_order']),
                 #'CS_ID_mothers':       _list_int64_feature(data_element_dict['CS_ID_mothers']),
             }
     )
@@ -91,10 +103,10 @@ def get_sequence_example_object(data_element_dict):
                 'branchings'       : branchings_feature(       data_element_dict['branchings']),
                 'sparse_branchings': sparse_branchings_feature(data_element_dict['branchings']),     
                 'mother_momenta'   : mother_momenta_feature(   data_element_dict['mother_momenta']),
-                'daughter_momenta' : daughter_momenta_feature( data_element_dict['daughter_momenta'])
+                'daughter_momenta' : daughter_momenta_feature( data_element_dict['daughter_momenta']),
                 
-                #'CSJets':        _list_of_lists_float_feature(data_element_dict['CSJets']),
-                #'CS_ID_intermediate_states': _list_of_lists_int64_feature(data_element_dict['CS_ID_intermediate_states']),
+                #'CSJets'           : CSJets_feature(data_element_dict['CSJets']),
+                #'CS_ID_intermediate_states': CS_ID_intermediate_states_feature(data_element_dict['CS_ID_intermediate_states']),
                 #'CS_ID_daughters': _list_of_lists_int64_feature(data_element_dict['CS_ID_daughters']),
             }
     )
@@ -129,5 +141,4 @@ def create_TFRecord(json_filename, tfrecord_filename, verbose = False):
             sequence_example = get_sequence_example_object(data_element_dict)
 
             # Append each example into tfrecord
-            tfwriter.write(sequence_example.SerializeToString())    
-        
+            tfwriter.write(sequence_example.SerializeToString()) 
