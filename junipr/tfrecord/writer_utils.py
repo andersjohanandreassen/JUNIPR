@@ -133,7 +133,7 @@ def create_TFRecord(json_filename, tfrecord_filename, verbose = False):
         # Iterate through all data elements in data array
         data_size = len(data_arr)
         if verbose:
-            print("Writing " + json_filename + " to " + tfrecord_filename)
+            print("Writing " + json_filename + " to " + tfrecord_filename, flush=True)
         for i, data_element_dict in enumerate(data_arr):
             if verbose:
                 print_progress(i, data_size)
