@@ -2,7 +2,11 @@
 
 __all__ = ['JUNIPR']
 
+from packaging import version
 import tensorflow as tf 
+if version.parse(tf.__version__)<version.parse("2.0.0-alpha0"):
+    raise ImportError("Please upgrade to Tensorflow 2.0.0-alpha0 or newer")
+
 tfK = tf.keras
 
 import numpy as np
