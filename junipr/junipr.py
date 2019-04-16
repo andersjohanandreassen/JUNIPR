@@ -75,7 +75,7 @@ class JUNIPR:
         self.custom_objects = {'normalize_layer'                : self.normalize_layer,
                                'categorical_crossentropy_mother': self.categorical_crossentropy_mother,
                                'binary_crossentropy_end'        : self.binary_crossentropy_end,
-                               'sparse_categorical_crossentropy': self.sparse_categorical_crossentropy
+                               'weighted_sparse_categorical_crossentropy': self.weighted_sparse_categorical_crossentropy
                               }
         
     def normalize_layer(self, x):
@@ -100,7 +100,7 @@ class JUNIPR:
         t = target
         return w*tf.losses.binary_crossentropy(t, output)
     
-    def sparse_categorical_crossentropy(self, target, output, weights):
+    def weighted_sparse_categorical_crossentropy(self, target, output, weights):
         w = weights[:,:,0]
         return w*tf.losses.sparse_categorical_crossentropy(target, output)
     
@@ -261,10 +261,10 @@ class JUNIPR:
         # Constrict log_probabilities
         log_P_end    = tf.keras.layers.Lambda(lambda x: -self.binary_crossentropy_end(x[0],x[1],x[2]), name='log_P_end')([input_endings, endings, input_ending_weights])
         log_P_mother = tf.keras.layers.Lambda(lambda x:-self.categorical_crossentropy_mother(x[0],x[1]), name='log_P_mother')([input_mothers, mothers])
-        log_P_z      = tf.keras.layers.Lambda(lambda x:-self.sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_z')([input_sparse_branchings_z, sparse_branchings_z, input_branchings_weights])
-        log_P_t      = tf.keras.layers.Lambda(lambda x:-self.sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_t')([input_sparse_branchings_t, sparse_branchings_t, input_branchings_weights])
-        log_P_p      = tf.keras.layers.Lambda(lambda x:-self.sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_p')([input_sparse_branchings_p, sparse_branchings_p, input_branchings_weights])
-        log_P_d      = tf.keras.layers.Lambda(lambda x:-self.sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_d')([input_sparse_branchings_d, sparse_branchings_d, input_branchings_weights])
+        log_P_z      = tf.keras.layers.Lambda(lambda x:-self.weighted_sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_z')([input_sparse_branchings_z, sparse_branchings_z, input_branchings_weights])
+        log_P_t      = tf.keras.layers.Lambda(lambda x:-self.weighted_sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_t')([input_sparse_branchings_t, sparse_branchings_t, input_branchings_weights])
+        log_P_p      = tf.keras.layers.Lambda(lambda x:-self.weighted_sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_p')([input_sparse_branchings_p, sparse_branchings_p, input_branchings_weights])
+        log_P_d      = tf.keras.layers.Lambda(lambda x:-self.weighted_sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_d')([input_sparse_branchings_d, sparse_branchings_d, input_branchings_weights])
         
         if sum_log_probabilities:
             log_P_end    = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=-1, keepdims=True), name='sum_log_P_end')(log_P_end)
@@ -288,13 +288,15 @@ class JUNIPR:
         return probability_model        
     
     
-    def validate(self, dataset, predict = False, label=None, model = None, reload = False, save_dir = './data'):
+    def validate(self, dataset, predict = False, label=None, model = None, reload = False, save_dir = './data', verbose=False):
         """
         Validate dataset. 
         The dataset should have padding set to TFR_PADDED_SHAPES_MAX and not be repeted or shuffled. 
         """        
         if label is not None:
             label = '_'+label
+        else:
+            label = ''
 
         if predict and model is None:
             model = self.model
@@ -326,8 +328,10 @@ class JUNIPR:
             branchings_d      = np.zeros((DIM_M, GRANULARITY))
             branchings_counts = np.zeros((DIM_M, 1))
 
-
+            counter = 0
             for inputs, outputs in dataset:
+                if(verbose and counter%100 == 0):
+                    print("-- Processing batch ", counter, flush=True)
                 if predict:
                     e, m, b_z, b_t, b_p, b_d = model.predict_on_batch(inputs)
                     e   = e*tf.cast(outputs['ending_weights'], tf.float32)
@@ -356,6 +360,8 @@ class JUNIPR:
                 branchings_p      += np.sum(b_p, axis=(0,1))
                 branchings_d      += np.sum(b_d, axis=(0,1))
                 branchings_counts += np.sum(outputs['sparse_branching_weights'], axis=0)
+                
+                counter +=1
 
             val_data = {'endings':endings,
                         'ending_counts':ending_counts,
@@ -371,14 +377,4 @@ class JUNIPR:
             return val_data
 
     def load_model(self, path_to_saved_model):
-        self.model = tfK.models.load_model(path_to_saved_model, binary_crossentropy_end_objects=self.custom_objects)
-
-"""
-def get_bin_index(value, bin_edges):
-    for i, edge in enumerate(np.asarray(bin_edges)[1:]):
-        if(value < edge):
-            return i
-    return len(bin_edges)-2
-
-
-"""
+        self.model = tfK.models.load_model(path_to_saved_model, custom_objects=self.custom_objects)
