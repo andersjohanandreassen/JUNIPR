@@ -65,7 +65,9 @@ def sparse_branchings_feature(branchings):
 
 def sparse_branching_weights_feature(n_branchings):
     """ Create feature for sparse_branching_weights"""
-    return _list_int64_feature(tf.fill((n_branchings,1),1))
+    return _list_int64_feature(tf.concat([tf.fill((n_branchings,1),1),
+                                         tf.fill((1,1),0)],
+                                         axis=0))
 
 def CSJets_feature(CSJets):
     """ Create feature for CSJets"""
@@ -105,8 +107,8 @@ def get_sequence_example_object(data_element_dict):
                 'mother_momenta'   : mother_momenta_feature(   data_element_dict['mother_momenta']),
                 'daughter_momenta' : daughter_momenta_feature( data_element_dict['daughter_momenta']),
                 
-                #'CSJets'           : CSJets_feature(data_element_dict['CSJets']),
-                #'CS_ID_intermediate_states': CS_ID_intermediate_states_feature(data_element_dict['CS_ID_intermediate_states']),
+                'CSJets'           : CSJets_feature(data_element_dict['CSJets']),
+                'CS_ID_intermediate_states': CS_ID_intermediate_states_feature(data_element_dict['CS_ID_intermediate_states']),
                 #'CS_ID_daughters': _list_of_lists_int64_feature(data_element_dict['CS_ID_daughters']),
             }
     )
