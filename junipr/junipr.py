@@ -74,6 +74,7 @@ class JUNIPR:
             
         self.custom_objects = {'normalize_layer'                : self.normalize_layer,
                                'categorical_crossentropy_mother': self.categorical_crossentropy_mother,
+                               'categorical_crossentropy_mother2': self.categorical_crossentropy_mother2,
                                'binary_crossentropy_end'        : self.binary_crossentropy_end,
                                'weighted_sparse_categorical_crossentropy': self.weighted_sparse_categorical_crossentropy
                               }
@@ -95,14 +96,22 @@ class JUNIPR:
         
         return -tfK.backend.sum(tf.cast(target, tf.float32)*tfK.backend.log(output), axis=-1) 
     
-    def binary_crossentropy_end(self, target, output, weights):
+    def categorical_crossentropy_mother2(self, inputs):
+        """ version of categorical_crossentropy_mother that takes a list as inputs. 
+        Returns the negative of the normal categorical_crossentropy_mother function"""
+        target, output = inputs
+        return -self.categorical_crossentropy_mother(target, output)
+    
+    def binary_crossentropy_end(self, inputs):
+        target, output, weights = inputs
         w = weights[:,:,0]
         t = target
-        return w*tf.losses.binary_crossentropy(t, output)
+        return -w*tf.losses.binary_crossentropy(t, output)
     
-    def weighted_sparse_categorical_crossentropy(self, target, output, weights):
+    def weighted_sparse_categorical_crossentropy(self, inputs):
+        target, output, weights = inputs
         w = weights[:,:,0]
-        return w*tf.losses.sparse_categorical_crossentropy(target, output)
+        return -w*tf.losses.sparse_categorical_crossentropy(target, output)
     
     def mask_input(self):
         # Masking
@@ -259,12 +268,12 @@ class JUNIPR:
         sparse_branchings_d = self.model.get_layer('sparse_branchings_d').output
         
         # Constrict log_probabilities
-        log_P_end    = tf.keras.layers.Lambda(lambda x: -self.binary_crossentropy_end(x[0],x[1],x[2]), name='log_P_end')([input_endings, endings, input_ending_weights])
-        log_P_mother = tf.keras.layers.Lambda(lambda x:-self.categorical_crossentropy_mother(x[0],x[1]), name='log_P_mother')([input_mothers, mothers])
-        log_P_z      = tf.keras.layers.Lambda(lambda x:-self.weighted_sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_z')([input_sparse_branchings_z, sparse_branchings_z, input_branchings_weights])
-        log_P_t      = tf.keras.layers.Lambda(lambda x:-self.weighted_sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_t')([input_sparse_branchings_t, sparse_branchings_t, input_branchings_weights])
-        log_P_p      = tf.keras.layers.Lambda(lambda x:-self.weighted_sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_p')([input_sparse_branchings_p, sparse_branchings_p, input_branchings_weights])
-        log_P_d      = tf.keras.layers.Lambda(lambda x:-self.weighted_sparse_categorical_crossentropy(x[0],x[1],x[2]), name='log_P_d')([input_sparse_branchings_d, sparse_branchings_d, input_branchings_weights])
+        log_P_end    = tf.keras.layers.Lambda(self.binary_crossentropy_end, name='log_P_end')([input_endings, endings, input_ending_weights])
+        log_P_mother = tf.keras.layers.Lambda( self.categorical_crossentropy_mother2, name='log_P_mother')([input_mothers, mothers])
+        log_P_z      = tf.keras.layers.Lambda( self.weighted_sparse_categorical_crossentropy, name='log_P_z')([input_sparse_branchings_z, sparse_branchings_z, input_branchings_weights])
+        log_P_t      = tf.keras.layers.Lambda( self.weighted_sparse_categorical_crossentropy, name='log_P_t')([input_sparse_branchings_t, sparse_branchings_t, input_branchings_weights])
+        log_P_p      = tf.keras.layers.Lambda( self.weighted_sparse_categorical_crossentropy, name='log_P_p')([input_sparse_branchings_p, sparse_branchings_p, input_branchings_weights])
+        log_P_d      = tf.keras.layers.Lambda( self.weighted_sparse_categorical_crossentropy, name='log_P_d')([input_sparse_branchings_d, sparse_branchings_d, input_branchings_weights])
         
         if sum_log_probabilities:
             log_P_end    = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=-1, keepdims=True), name='sum_log_P_end')(log_P_end)
