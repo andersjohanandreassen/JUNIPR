@@ -22,7 +22,11 @@ class JUNIPR_binary:
         
         self.model = self.model()
         
-        self.model.compile(optimizer='Adam', loss='sparse_categorical_crossentropy')
+        self.model.compile(optimizer='Adam', 
+                           loss='binary_crossentropy',
+                           metrics=[tf.keras.metrics.AUC()]
+                           )
+        self.custom_objects = JUNIPR(verbose=False).custom_objects
 
     def model(self):
         # Load two JUNIPR models
@@ -62,7 +66,7 @@ class JUNIPR_binary:
         p0 = pjunipr0(inputs=_all_inputs)
         p1 = pjunipr1(inputs=_all_inputs)
         
-        output_concat = tf.keras.layers.concatenate([p0,p1],  name='concat_p0_p1')
-        output_layer  = tf.keras.layers.Activation('softmax', name='label')(output_concat)
+        log_p_diff = tf.keras.layers.subtract([p1,p0],  name='log_p_diff')
+        output_layer  = tf.keras.layers.Activation('sigmoid', name='label')(log_p_diff)
         
         return tf.keras.models.Model(inputs=_all_inputs, outputs=output_layer)
