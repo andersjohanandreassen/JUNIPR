@@ -352,10 +352,10 @@ class JUNIPR:
                 else:
                     e   = outputs['endings']
                     m   = outputs['mothers']
-                    b_z = tf.one_hot(outputs['sparse_branchings_z'], depth=GRANULARITY)
-                    b_t = tf.one_hot(outputs['sparse_branchings_t'], depth=GRANULARITY)
-                    b_p = tf.one_hot(outputs['sparse_branchings_p'], depth=GRANULARITY)
-                    b_d = tf.one_hot(outputs['sparse_branchings_d'], depth=GRANULARITY)
+                    b_z = tf.one_hot(outputs['sparse_branchings_z'], depth=GRANULARITY)[:,:,0,:]
+                    b_t = tf.one_hot(outputs['sparse_branchings_t'], depth=GRANULARITY)[:,:,0,:]
+                    b_p = tf.one_hot(outputs['sparse_branchings_p'], depth=GRANULARITY)[:,:,0,:]
+                    b_d = tf.one_hot(outputs['sparse_branchings_d'], depth=GRANULARITY)[:,:,0,:]
 
 
                 endings           += np.sum(e                        , axis=0)
@@ -364,10 +364,10 @@ class JUNIPR:
                 mothers           += np.sum(m                        , axis=0)
                 mother_counts     += np.sum(inputs['mother_weights'] , axis=0)
 
-                branchings_z      += np.sum(b_z, axis=(0,2))
-                branchings_t      += np.sum(b_t, axis=(0,2))
-                branchings_p      += np.sum(b_p, axis=(0,2))
-                branchings_d      += np.sum(b_d, axis=(0,2))
+                branchings_z      += np.sum(b_z, axis=0)
+                branchings_t      += np.sum(b_t, axis=0)
+                branchings_p      += np.sum(b_p, axis=0)
+                branchings_d      += np.sum(b_d, axis=0)
                 branchings_counts += np.sum(outputs['sparse_branching_weights'], axis=0)
                 
                 counter +=1
